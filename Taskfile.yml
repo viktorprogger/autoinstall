@@ -106,6 +106,7 @@ tasks:
             --volume /etc/passwd:/etc/passwd:ro \
             --volume /etc/group:/etc/group:ro \
             composer:1
+
   bottom:
     cmds:
       - snap install bottom
