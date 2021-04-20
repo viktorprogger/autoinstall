@@ -1,0 +1,152 @@
+version: 3
+
+env:
+  USERNAME:
+    sh: test -n "$USERNAME" && echo $USERNAME || whoami
+
+tasks:
+  precondition-root:
+    cmds:
+      - echo 'Ok, I\'m root'
+    preconditions:
+      - test `whoami` = 'root'
+
+  precondition-username:
+    cmds:
+      - echo "Using username $USERNAME"
+    preconditions:
+      - test "$USERNAME" != 'root'
+
+  create-user-file:
+    deps:
+      - task: precondition-username
+    cmds:
+      - touch /home/$USERNAME/{{.FILE}}
+      - chown "$USERNAME":"$USERNAME" /home/$USERNAME/{{.FILE}}
+
+  addAlias:
+    deps:
+      - task: create-user-file
+        vars:
+          FILE: .bash_aliases
+    cmds:
+      - echo "{{.ALIAS}}='{{catLines .COMMAND}} \$@'" >> /home/$USERNAME/.bash_aliases
+
+  install:
+    deps:
+      - apt-update
+    cmds:
+      - All dependencies are installed
+
+  apt-update:
+    cmds:
+      - apt update
+      - apt upgrade -y
+
+  docker:
+    deps:
+      - precondition-root
+      - precondition-username
+    cmds:
+      - curl -fsSL https://get.docker.com | bash
+      - usermod -aG docker $USERNAME
+
+  dry:
+    cmds:
+      - task: addAlias
+        vars:
+          ALIAS: dry
+          COMMAND: docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock -e DOCKER_HOST=$DOCKER_HOST moncho/dry
+
+  php:
+    deps:
+      - precondition-username
+    cmds:
+      - task: addAlias
+        vars:
+          ALIAS: php
+          COMMAND: docker run --rm -it -u `id -u`:`id -g` --volume $PWD:/app -w /app ghcr.io/mileschou/xdebug:8.0 php $@
+      - task: addAlias
+        vars:
+          ALIAS: php81
+          COMMAND: docker run --rm -it -u `id -u`:`id -g` --volume $PWD:/app -w /app ghcr.io/mileschou/xdebug:8.1 php $@
+      - task: addAlias
+        vars:
+          ALIAS: php8
+          COMMAND: docker run --rm -it -u `id -u`:`id -g` --volume $PWD:/app -w /app ghcr.io/mileschou/xdebug:8.0 php $@
+      - task: addAlias
+        vars:
+          ALIAS: php74
+          COMMAND: docker run --rm -it -u `id -u`:`id -g` --volume $PWD:/app -w /app ghcr.io/mileschou/xdebug:7.4 php $@
+      - task: addAlias
+        vars:
+          ALIAS: composer
+          COMMAND: |
+            docker run --rm --interactive --tty -u `id -u`:`id -g` \
+            -e COMPOSER_HOME=/composer-data/.composer \
+            -e COMPOSER_CACHE_DIR=/composer-data/.composer/cache \
+            -e SSH_AUTH_SOCK=/ssh-auth.sock \
+            --volume $PWD:/app \
+            --volume /home/`whoami`/.composer:/composer-data/.composer \
+            --volume $SSH_AUTH_SOCK:/ssh-auth.sock \
+            --volume /etc/passwd:/etc/passwd:ro \
+            --volume /etc/group:/etc/group:ro \
+            composer:2
+      - task: addAlias
+        vars:
+          ALIAS: composer1
+          COMMAND: |
+            docker run --rm --interactive --tty -u `id -u`:`id -g` \
+            -e COMPOSER_HOME=/composer-data/.composer \
+            -e COMPOSER_CACHE_DIR=/composer-data/.composer/cache \
+            -e SSH_AUTH_SOCK=/ssh-auth.sock \
+            --volume $PWD:/app \
+            --volume /home/`whoami`/.composer:/composer-data/.composer \
+            --volume $SSH_AUTH_SOCK:/ssh-auth.sock \
+            --volume /etc/passwd:/etc/passwd:ro \
+            --volume /etc/group:/etc/group:ro \
+            composer:1
+  bottom:
+    cmds:
+      - snap install bottom
+
+  gdu:
+    deps:
+      - precondition-root
+    cmds:
+      - snap install gdu-disk-usage-analyzer
+      - snap connect gdu-disk-usage-analyzer:mount-observe :mount-observe
+      - snap connect gdu-disk-usage-analyzer:system-backup :system-backup
+      - snap alias gdu-disk-usage-analyzer.gdu gdu
+
+  bat:
+    deps:
+      - precondition-root
+    cmds:
+      - snap install batcat
+      - task: addAlias
+        vars:
+          ALIAS: cat
+          COMMAD: batcat
+
+  procs:
+    deps:
+      - precondition-root
+    cmds:
+      - snap install procs
+
+  exa:
+    deps:
+      - precondition-root
+    cmds:
+      - apt install -y exa
+      - task: addAlias
+        vars:
+          ALIAS: ls
+          COMMAD: exa
+
+  git:
+    deps:
+      - precondition-root
+    cmds:
+      - apt install git -y
