@@ -7,7 +7,7 @@ env:
 tasks:
   precondition-root:
     cmds:
-      - echo 'Ok, I\'m root'
+      - echo Ok, I am root
     preconditions:
       - test `whoami` = 'root'
 
@@ -23,6 +23,23 @@ tasks:
     cmds:
       - touch /home/$USERNAME/{{.FILE}}
       - chown "$USERNAME":"$USERNAME" /home/$USERNAME/{{.FILE}}
+    status:
+      - test -f /home/$USERNAME/{{.FILE}}
+
+  create-user-directory:
+    deps:
+      - task: precondition-username
+    cmds:
+      - mkdir -p /home/$USERNAME/{{.DIRECTORY}}
+      - chown "$USERNAME":"$USERNAME" /home/$USERNAME/{{.DIRECTORY}}
+    status:
+      - test -d /home/$USERNAME/{{.DIRECTORY}}
+
+  remove-file:
+    cmds:
+      - rm {{.FILE}}
+    status:
+      - test ! -f {{.FILE}}
 
   addAlias:
     deps:
@@ -32,13 +49,32 @@ tasks:
     cmds:
       - echo "{{.ALIAS}}='{{catLines .COMMAND}} \$@'" >> /home/$USERNAME/.bash_aliases
 
+  addBashConfig:
+    deps:
+      - task: create-user-file
+        vars:
+          FILE: .bashrc
+    cmds:
+      - echo '{{.CONFIG}}' >> /home/$USERNAME/.bashrc
+
   install:
     deps:
       - apt-update
     cmds:
-      - All dependencies are installed
+      - task: docker
+      - task: docker-compose
+      - task: gdu
+      - task: bat
+      - task: procs
+      - task: exa
+      - task: git
+      - task: bottom
+      - task: starship
+      - echo All dependencies are installed
 
   apt-update:
+    deps:
+      - precondition-root
     cmds:
       - apt update
       - apt upgrade -y
@@ -50,6 +86,17 @@ tasks:
     cmds:
       - curl -fsSL https://get.docker.com | bash
       - usermod -aG docker $USERNAME
+    status:
+      - which docker
+
+  docker-compose:
+    deps:
+      - precondition-root
+    cmds:
+      - curl -L "https://github.com/docker/compose/releases/download/1.24.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+      - chmod +x /usr/local/bin/docker-compose
+    status:
+      - which docker-compose
 
   dry:
     cmds:
@@ -107,9 +154,7 @@ tasks:
             --volume /etc/group:/etc/group:ro \
             composer:1
 
-  bottom:
-    cmds:
-      - snap install bottom
+
 
   gdu:
     deps:
@@ -119,6 +164,8 @@ tasks:
       - snap connect gdu-disk-usage-analyzer:mount-observe :mount-observe
       - snap connect gdu-disk-usage-analyzer:system-backup :system-backup
       - snap alias gdu-disk-usage-analyzer.gdu gdu
+    status:
+      - which gdu
 
   bat:
     deps:
@@ -129,12 +176,16 @@ tasks:
         vars:
           ALIAS: cat
           COMMAD: batcat
+    status:
+      - which batcat
 
   procs:
     deps:
       - precondition-root
     cmds:
       - snap install procs
+    status:
+      - which procs
 
   exa:
     deps:
@@ -145,9 +196,72 @@ tasks:
         vars:
           ALIAS: ls
           COMMAD: exa
+    status:
+      - which exa
 
   git:
     deps:
       - precondition-root
     cmds:
       - apt install git -y
+    status:
+      - which git
+
+  unzip:
+    cmds:
+      - task: precondition-root
+      - apt install unzip -y
+    status:
+      - which unzip
+
+  fontJetbrains:
+    deps:
+      - unzip
+      - precondition-username
+      - task: create-user-directory
+        vars:
+          DIRECTORY: .local2/share/fonts
+    cmds:
+      - task: remove-file
+        vars:
+          FILE: /tmp/JetBrainsMono.zip
+      - wget https://github.com/ryanoasis/nerd-fonts/releases/download/v2.1.0/JetBrainsMono.zip -P /tmp
+      - unzip /tmp/JetBrainsMono.zip -d /home/$USERNAME/.local2/share/fonts
+      - chown -R $USERNAME:$USERNAME /home/$USERNAME/.local2/share/fonts
+      - rm /tmp/JetBrainsMono.zip
+
+  starship:
+    deps:
+      - fontJetbrains
+    cmds:
+      - snap install starship
+      - task: addBashConfig
+        vars:
+          CONFIG: |
+            function set_win_title(){
+                echo -ne "\033]0; $USER@$HOST:$PWD \007"
+            }
+      - task: addBashConfig
+        vars:
+          CONFIG: starship_precmd_user_func="set_win_title"
+      - task: addBashConfig
+        vars:
+          CONFIG: eval "$(starship init bash)"
+    status:
+      - which starship
+
+  bottom:
+    deps:
+      - precondition-root
+      - task: create-user-directory
+        vars:
+          DIRECTORY: .local2/share/fonts
+      - task: remove-file
+        vars:
+          FILE: /tmp/bottom.deb
+    cmds:
+      - wget https://github.com/ClementTsang/bottom/releases/download/0.5.7/bottom_0.5.7_amd64.deb -O /tmp/bottom.deb
+      - dpkg -i /tmp/bottom.deb
+      - rm /tmp/bottom.deb
+    status:
+      - which btm
