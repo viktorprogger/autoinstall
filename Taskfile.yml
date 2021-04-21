@@ -154,9 +154,6 @@ tasks:
             --volume /etc/group:/etc/group:ro \
             composer:1
 
-
-
-
   gdu:
     deps:
       - precondition-root
@@ -266,3 +263,12 @@ tasks:
       - rm /tmp/bottom.deb
     status:
       - which btm
+
+  fzf:
+    deps:
+      - precondition-root
+      - precondition-username
+    cmds:
+      - apt install fzf -y
+    status:
+      - which fzf
