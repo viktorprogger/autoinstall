@@ -47,7 +47,7 @@ tasks:
         vars:
           FILE: .bash_aliases
     cmds:
-      - echo "{{.ALIAS}}='{{catLines .COMMAND}} \$@'" >> /home/$USERNAME/.bash_aliases
+      - echo "alias {{.ALIAS}}='{{catLines .COMMAND}} \$@'" >> /home/$USERNAME/.bash_aliases
 
   addBashConfig:
     deps:
@@ -173,7 +173,7 @@ tasks:
       - task: addAlias
         vars:
           ALIAS: cat
-          COMMAD: batcat
+          COMMAND: batcat
     status:
       - which batcat
 
@@ -193,7 +193,7 @@ tasks:
       - task: addAlias
         vars:
           ALIAS: ls
-          COMMAD: exa
+          COMMAND: exa
     status:
       - which exa
 
